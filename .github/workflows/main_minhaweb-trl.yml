@@ -1,68 +1,70 @@
-name: Build and deploy ASP.Net Core app to Azure Web App - minhaweb-trl
+name: Build and Deploy ASP.NET Core App to Azure Web App
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
+  workflow_dispatch:  # Permite rodar manualmente pelo GitHub Actions UI
 
 jobs:
   build:
-    runs-on: windows-latest
-    permissions:
-      contents: read #This is required for actions/checkout
+    runs-on: windows-latest  # Usar uma máquina Windows para build .NET
 
     steps:
-      - uses: actions/checkout@v4
+      # Checkout do código
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Set up .NET Core
+      # Configura .NET Core no runner
+      - name: Setup .NET Core
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.x'
 
-      - name: Debug: List files
-        run: Get-ChildItem -Recurse *.csproj
-        shell: pwsh # Lista todos os arquivos .csproj para garantir que o caminho está correto
+      # Build do projeto .NET
+      - name: Build .NET project
+        run: |
+          dotnet restore
+          dotnet build --configuration Release
 
-      - name: Build with dotnet
-        run: dotnet build MyApp/MyApp.csproj --configuration Release  # Caminho corrigido para o arquivo .csproj
+      # Publicação do projeto .NET
+      - name: Publish .NET project
+        run: |
+          dotnet publish -c Release -o ${{env.DOTNET_ROOT}}/myapp
 
-      - name: dotnet publish
-        run: dotnet publish MyApp/MyApp.csproj -c Release -o "${{env.DOTNET_ROOT}}/myapp"  # Caminho corrigido para o arquivo .csproj
-
-      - name: Upload artifact for deployment job
+      # Envio do artefato de build para o próximo job (deploy)
+      - name: Upload artifact for deployment
         uses: actions/upload-artifact@v4
         with:
-          name: .net-app
+          name: myapp-artifact
           path: ${{env.DOTNET_ROOT}}/myapp
 
   deploy:
     runs-on: windows-latest
-    needs: build
+    needs: build  # Certifica-se de que o deploy só aconteça após o build
+
     environment:
       name: 'Production'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-    permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
 
     steps:
+      # Baixar o artefato enviado do job anterior
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
-          name: .net-app
+          name: myapp-artifact
 
-      - name: Login to Azure
+      # Login no Azure
+      - name: Azure login
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_CF321BB29B4042DCBC568A92FF26872D }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_C141ACA5D8C14578A8EBC196C93D873A }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_18B1CA8FB57D45F2A1A34B877C14D44E }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # Deploy para o Azure Web App
       - name: Deploy to Azure Web App
-        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'minhaweb-trl'
-          slot-name: 'Production'
-          package: .
+          app-name: 'minhaweb-trl'  # Substitua pelo nome do seu Web App no Azure
+          slot-name: 'Production'   # Pode ser 'Staging' ou outro slot, se necessário
+          package: './myapp'  # Caminho do artefato gerado no build
