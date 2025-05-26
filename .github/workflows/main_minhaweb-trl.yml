@@ -4,11 +4,11 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:  # Permite rodar manualmente pelo GitHub Actions UI
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: windows-latest  # Usar uma máquina Windows para build .NET
+    runs-on: windows-latest
 
     steps:
       # Checkout do código
@@ -21,16 +21,16 @@ jobs:
         with:
           dotnet-version: '9.x'
 
-      # Build do projeto .NET
+      # Restaura e faz o build do projeto .NET
       - name: Build .NET project
         run: |
-          dotnet restore
-          dotnet build --configuration Release
+          dotnet restore ./src/MyApp/MyApp.csproj  # Ajuste o caminho para o .csproj ou .sln
+          dotnet build ./src/MyApp/MyApp.csproj --configuration Release  # Ajuste para o caminho correto
 
       # Publicação do projeto .NET
       - name: Publish .NET project
         run: |
-          dotnet publish -c Release -o ${{env.DOTNET_ROOT}}/myapp
+          dotnet publish ./src/MyApp/MyApp.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp  # Ajuste para o caminho correto
 
       # Envio do artefato de build para o próximo job (deploy)
       - name: Upload artifact for deployment
@@ -41,10 +41,7 @@ jobs:
 
   deploy:
     runs-on: windows-latest
-    needs: build  # Certifica-se de que o deploy só aconteça após o build
-
-    environment:
-      name: 'Production'
+    needs: build
 
     steps:
       # Baixar o artefato enviado do job anterior
@@ -65,6 +62,6 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'minhaweb-trl'  # Substitua pelo nome do seu Web App no Azure
-          slot-name: 'Production'   # Pode ser 'Staging' ou outro slot, se necessário
-          package: './myapp'  # Caminho do artefato gerado no build
+          app-name: 'minhaweb-trl'
+          slot-name: 'Production'
+          package: './myapp'
